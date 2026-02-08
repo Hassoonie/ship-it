@@ -413,6 +413,108 @@ Before executing the roadmap, verify:
 
 ---
 
+## ISSUES.md Template
+
+Referenced throughout the pipeline for logging deferred work, bugs, and review findings. Create this file during the PLAN phase alongside `features.json`.
+
+```markdown
+# Issues: [Project Name]
+
+| ID | Severity | Phase | Description | Status |
+|----|----------|-------|-------------|--------|
+| ISS-001 | High | Build | [description] | Open |
+| ISS-002 | Medium | Review | [description] | Fixed |
+| ISS-003 | Low | Build | [description] | Deferred |
+```
+
+**Severity levels:**
+- **High** — Blocks a feature or breaks existing functionality. Fix immediately.
+- **Medium** — Degrades UX or skips a non-critical requirement. Fix if time allows, defer otherwise.
+- **Low** — Enhancement, polish item, or edge case. Always defer to v2.
+
+**Status values:** `Open` (needs attention), `Fixed` (resolved this session), `Deferred` (moved to v2).
+
+**Rules:**
+- Every Strike 3 escalation (see `error-recovery.md`) creates an ISSUES.md entry
+- Every review finding below confidence 80 creates an ISSUES.md entry
+- Every nice-to-have deviation creates an ISSUES.md entry
+- Ship Report pulls all `Deferred` items into "Deferred to v2" section
+
+---
+
+## Research Fast-Path
+
+For standard web dev projects (CRUD, auth, REST APIs, forms) with well-known stacks, research can be compressed significantly.
+
+### Decision Criteria
+
+Use the fast-path when ALL of these are true:
+- Stack is in the Decision Framework defaults (Next.js, Prisma, Tailwind, shadcn, NextAuth)
+- No niche domains (3D, audio, ML, real-time, game dev, shaders, WebRTC)
+- No unfamiliar third-party APIs (Stripe, Twilio, etc. — these need deep research)
+- No brownfield codebase to understand
+
+### Fast-Path Procedure (60-second budget)
+
+1. **Context7 only** — Skip WebSearch entirely. Query `resolve-library-id` + `query-docs` for version-specific setup patterns of each core library
+2. **Version-specific queries** — Always include the version: "Prisma 7 setup with SQLite adapter", "Next.js 15 App Router server actions"
+3. **Skip ecosystem agent** — No Agent 3 (best practices search). Standard stacks have known patterns.
+4. **Output** — Condensed RESEARCH.md (skip "Common Pitfalls" and "Unverified Assumptions" sections — not needed for known stacks)
+
+### Condensed RESEARCH.md Format
+
+```markdown
+# Research: [Project Name]
+
+## Stack
+[Framework] + [DB] + [Auth] + [Styling]
+
+## Version-Specific Patterns
+| Library | Version | Key Pattern | Source |
+|---------|---------|-------------|--------|
+| next | 15.x | App Router, server actions | Context7 |
+| prisma | 7.x | Adapter pattern, generate after migrate | Context7 |
+
+## Code Patterns
+[Key code snippets from Context7 — setup, config, core API usage]
+```
+
+---
+
+## Version Pre-Check
+
+Move version validation from post-scaffold to during-research. Catch mismatches before they become build errors.
+
+### During Research Phase
+
+After Context7 queries return, record expected versions:
+
+```markdown
+## Expected Versions (from Research)
+| Library | Expected | Based On |
+|---------|----------|----------|
+| next | 15.x | Context7 patterns |
+| prisma | 7.x | Context7 adapter pattern |
+| react | 19.x | Next.js 15 default |
+```
+
+### During Skeleton Phase (Post-Install)
+
+After `pnpm install`, immediately compare:
+
+```
+1. Read package.json
+2. For each library in Expected Versions table:
+   - Compare major version: expected vs actual
+   - If MATCH: proceed
+   - If MISMATCH: trigger Version Mismatch Recovery (see error-recovery.md)
+3. Update RESEARCH.md with actual versions
+```
+
+This prevents the most expensive class of errors — building features against wrong API patterns and debugging them one at a time.
+
+---
+
 ## Phase 6: BUILD — Execution Patterns
 
 ### Execution Strategy Selection

@@ -1,7 +1,7 @@
 ---
 name: ship-it
 description: "This skill should be used when the user wants to go from idea to MVP, says 'build this', 'ship it', 'create an app', 'build me a product', 'idea to MVP', 'make this real', 'full build', 'zero to one', or provides a product idea and expects autonomous end-to-end execution. Orchestrates research, planning, and building to ship complete working software from a single prompt."
-version: 3.0.0
+version: 3.2.0
 ---
 
 # Ship It — Idea to MVP Orchestrator
@@ -21,8 +21,8 @@ Autonomous end-to-end product builder. Takes a single idea and ships a working M
 Eight phases, executed in order. Each feeds the next.
 
 ```
-REFINE → INTAKE → PRD → RESEARCH → ARCHITECTURE → PLAN → BUILD → SHIP
-  (0)      (1)     (2)     (3)          (4)         (5)    (6)    (7)
+REFINE → INTAKE → PRD → RESEARCH → ARCHITECTURE → PLAN → BUILD → REVIEW → SHIP
+  (0)      (1)     (2)     (3)          (4)         (5)    (6)    (6.5)    (7)
 
 Optional: [MULTI-MODEL REVIEW] after Architecture (4.5)
 ```
@@ -192,7 +192,7 @@ Checkpoint-Validate-Continue pattern. See `references/pipeline-phases.md` for ex
 
 **Execution loop (per phase):** Re-ground → Read PLAN.md → Route strategy (A: autonomous, B: segmented, C: sequential, D: agent team) → Implement → Validate → Commit → Update `features.json` + `STATE.md`.
 
-**Deviation rules:** Bugs/missing code/blocking issues → fix immediately (auto). Architectural changes → STOP and ask user. Nice-to-haves → log to ISSUES.md, skip.
+**Deviation rules:** Bugs/blocking issues → apply 3-Strike Protocol from `references/error-recovery.md` (Quick Fix → Structured Diagnosis → Escalate). Architectural changes → STOP and ask user. Nice-to-haves → log to ISSUES.md, skip.
 
 **Scaffold ordering:** Run scaffolding tool FIRST into empty dir, then `scripts/init-project.sh`, then install deps + `pnpm approve-builds`.
 
@@ -202,6 +202,12 @@ Checkpoint-Validate-Continue pattern. See `references/pipeline-phases.md` for ex
 ```
 /ralph-loop "All features pass. Verify end-to-end, fix UI issues, improve error handling." --max-iterations 5
 ```
+
+---
+
+### Phase 6.5: REVIEW (Code Review Gate)
+
+After all features pass, run a 3-agent review swarm (Correctness, Integration, UX Baseline) before polish. Triage findings by confidence: 80+ fix, 50-79 fix-or-log, <50 log to ISSUES.md. See `references/quality-gates.md` for full protocol, test strategy, and review agent prompts.
 
 ---
 
@@ -251,11 +257,7 @@ Override only when project requirements clearly demand something else.
 
 ## State Persistence & Resumption
 
-If a session ends mid-build, the next session can resume:
-1. Check `.planning/STATE.md` for current position
-2. Check `features.json` for what's complete vs. remaining
-3. Check for PLAN.md without matching SUMMARY.md (incomplete work)
-4. Resume from exact point of interruption
+If a session ends mid-build, follow the 4-step Session Resume Protocol in `references/failure-prevention.md` (Assess State → Identify Resume Point → Detect Corruption → Re-Ground and Continue).
 
 ## Additional Resources
 
@@ -264,6 +266,8 @@ If a session ends mid-build, the next session can resume:
 - **`references/prompt-patterns.md`** — CLEARvAI prompt enhancement patterns, 5-section template, before/after examples
 - **`references/agent-swarm-patterns.md`** — Agent coordination patterns, swarm design, segmentation strategies
 - **`references/failure-prevention.md`** — 10 failure mode guardrails + known gotchas (Prisma 7, pnpm, WebSearch)
+- **`references/error-recovery.md`** — 3-Strike Diagnostic Protocol, error category quick-fixes, version mismatch recovery, Prisma decision tree
+- **`references/quality-gates.md`** — MVP test pyramid, vitest setup, Phase 6.5 code review swarm, triage protocol
 - **`references/multi-model-coordination.md`** — Multi-model review protocol, GPT/Claude coordination, graceful degradation
 
 ### Scripts

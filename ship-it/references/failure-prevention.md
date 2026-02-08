@@ -203,6 +203,70 @@ WebSearch can return "unavailable" for ~50% of queries. Always:
 
 ---
 
+## Session Resume Protocol
+
+When a session ends mid-build (context exhaustion, crash, user pause), the next session must resume cleanly without re-doing completed work or missing incomplete work.
+
+### 4-Step Resume Procedure
+
+**Step 1: Assess State**
+Read these files in order:
+1. `.planning/STATE.md` — current phase and status
+2. `.planning/features.json` — which features pass/fail
+3. `git log --oneline -20` — recent commits to verify what's actually on disk
+
+**Step 2: Identify Resume Point**
+
+Use the STATE.md status to determine where to resume:
+
+| STATE.md Status | Resume Action |
+|----------------|---------------|
+| `Phase N: Planning` | Re-read PLAN.md for phase N, begin execution |
+| `Phase N: In Progress` | Check which tasks in PLAN.md have matching commits; resume from first uncommitted task |
+| `Phase N: Complete` | Advance to Phase N+1; read its PLAN.md and begin |
+| `Phase N: Blocked` | Read ISSUES.md for the blocking issue; attempt resolution or ask user |
+| `Review: In Progress` | Re-run review swarm (see quality-gates.md) — review results don't persist |
+| `Polish: In Progress` | Run ralph-loop from scratch — polish is idempotent |
+
+**Step 3: Detect Corruption**
+
+Before resuming, verify state consistency:
+
+| Check | Expected | If Mismatch |
+|-------|----------|-------------|
+| `features.json` passes count vs `git log` feature commits | Should match | Trust `git log` — some features may have been committed but features.json not updated. Update features.json to match. |
+| PLAN.md exists for current phase | Should exist | If missing, regenerate from ROADMAP.md + features.json |
+| No uncommitted changes | Working tree clean | Review uncommitted changes. If they look complete, commit them. If partial, stash and note in ISSUES.md. |
+| STATE.md exists | Should exist | If missing, rebuild: count passing features in features.json, match to ROADMAP.md phases, set status accordingly |
+
+**Step 4: Re-Ground and Continue**
+
+1. Re-read `PRD.md` — refresh requirements context
+2. Re-read `RESEARCH.md` — refresh technical patterns (especially version-specific APIs)
+3. Re-read `ARCHITECTURE.md` — refresh structural decisions
+4. Re-read current phase `PLAN.md` — refresh immediate tasks
+5. Print resume summary:
+```
+SHIP-IT RESUMING — [Project Name]
+Phase: [N] — [Phase Name]
+Features: [passed]/[total] complete
+Resuming from: [specific task or step]
+```
+6. Continue execution from identified resume point
+
+### Critical Recovery: Missing Files
+
+| Missing File | Recovery |
+|-------------|----------|
+| `STATE.md` | Rebuild from features.json pass count + ROADMAP.md phase list |
+| `features.json` | **STOP** — Cannot resume without scope contract. Ask user to verify requirements. |
+| `ROADMAP.md` | Rebuild from features.json + PRD.md functional requirements |
+| `RESEARCH.md` | Re-run Research phase (fast-path if standard stack) |
+| `PRD.md` | **STOP** — Cannot resume without requirements. Ask user. |
+| Phase `PLAN.md` | Regenerate from ROADMAP.md phase description + features.json |
+
+---
+
 ## Master Prevention Checklist
 
 After completing each feature, verify these guardrails are holding:
