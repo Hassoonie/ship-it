@@ -175,6 +175,12 @@ After REFINE + INTAKE, generate a PRD through back-and-forth conversation.
 - **Scalability**: [Expected users, data volume]
 - **Accessibility**: [Minimum standard]
 
+## Build Strategy
+- **Parallelization**: [Agent Teams (preferred) / Subagent Swarm / Sequential]
+- **Team pattern**: [Feature Team (vertical slices) / Layer Team (DB→API→Frontend)]
+- **Estimated phases**: [N phases, N parallel-eligible]
+- **Notes**: [Any constraints on parallel execution — shared state, sequential deps]
+
 ## Success Metrics
 - [How you know it works — quantifiable if possible]
 
@@ -411,12 +417,12 @@ Before executing the roadmap, verify:
 
 ### Execution Strategy Selection
 
-Analyze each phase plan to determine the right strategy:
+Analyze each phase plan to determine the right strategy. See `references/agent-swarm-patterns.md` for detailed coordination patterns.
 
 **Strategy A: Fully Autonomous**
 - Use when: Phase has no decision points, all tasks are straightforward
 - How: Spawn a single Task agent with the full phase plan
-- Context: Agent gets PROJECT.md + RESEARCH.md + phase PLAN.md
+- Context: Agent gets PRD.md + RESEARCH.md + phase PLAN.md
 - Result: Agent writes code, runs verification, reports completion
 
 **Strategy B: Segmented**
@@ -430,7 +436,16 @@ Analyze each phase plan to determine the right strategy:
 - How: Execute tasks one at a time in main context
 - Use for: Skeleton phase (always), database schema creation, first feature
 
-### Context for Task Agents
+**Strategy D: Agent Team (preferred when available)**
+- Use when: Phase has 3+ independent features, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is enabled
+- How: Spawn a coordinated team — team lead delegates vertical slices to feature teammates
+- Benefit: Teammates message each other with interface contracts, shared task list auto-unblocks dependencies
+- Merge: Team lead runs merge-verify; integration gaps are caught via inter-agent messaging
+- Fallback: If Agent Teams unavailable, use Strategy A/B with post-merge verification step
+
+**Strategy selection order:** D (if enabled) → A/B (based on phase complexity) → C (if sequential required)
+
+### Context for Task Agents / Team Agents
 
 Every spawned agent receives:
 
@@ -440,8 +455,14 @@ Every spawned agent receives:
 
 ## Stack: [framework, db, styling, auth]
 
+## Your Role: [Agent / Team Lead / Feature Teammate]
+
 ## Your Assignment
 [Specific tasks from PLAN.md]
+
+## File Ownership (for teams)
+YOU own: [file list]
+DO NOT modify: [files owned by other teammates]
 
 ## Conventions
 - TypeScript strict mode
@@ -456,6 +477,20 @@ Every spawned agent receives:
 - Use proper TypeScript types — no `any`
 - Handle loading and error states in UI
 - Follow patterns from RESEARCH.md
+- Message teammates when producing interfaces they consume (teams only)
+```
+
+### Post-Merge Verification (Required for Strategy A/B/D)
+
+After parallel agents complete, the coordinator/lead MUST verify integration:
+
+```
+1. Check all new components are imported where needed
+2. Check all new API routes are wired to pages
+3. Verify shared types match across consumers
+4. Run `pnpm build` — fix any errors
+5. Run dev server — verify pages render
+6. Only then commit the integrated result
 ```
 
 ### Atomic Commit Protocol

@@ -148,12 +148,14 @@ AI agents fail in predictable ways. Ship-It prevents each one with specific guar
 
 ### Prisma 7.x Breaking Changes
 Prisma 7 removes the traditional `PrismaClient()` constructor. You MUST use the driver adapter pattern:
-- Install: `@prisma/adapter-better-sqlite3` + `better-sqlite3` (for SQLite)
-- Import from `@/generated/prisma/client` (not `@/generated/prisma`)
+- Install: `@prisma/adapter-better-sqlite3` + `better-sqlite3` + `dotenv` (for SQLite)
+- Import from `@/generated/prisma/client` (not `@/generated/prisma` — no index.ts in generated output)
 - Constructor: `new PrismaClient({ adapter })` — NOT `new PrismaClient()` or `new PrismaClient({ datasourceUrl })`
-- Class name: `PrismaBetterSqlite3` (lowercase `qlite`, not `SQLite3`)
+- Class name: `PrismaBetterSqlite3` (lowercase `qlite`, not `SQLite3` — TypeScript will error)
 - DB location: `process.cwd()` + `dev.db` at project root (not `prisma/dev.db`)
 - Schema: use `provider = "prisma-client"` in generator, no `url` in datasource for SQLite with adapter
+- **`prisma migrate dev` does NOT auto-generate the client** — always run `npx prisma generate` explicitly after migrations
+- Prisma 7 requires a `prisma.config.ts` that imports `dotenv/config` — install `dotenv` as a dev dep
 
 ```typescript
 import { PrismaClient } from "@/generated/prisma/client"
@@ -166,17 +168,32 @@ const prisma = new PrismaClient({ adapter })
 ```
 
 ### pnpm Build Scripts Blocked
-pnpm blocks native module compilation by default (e.g., `better-sqlite3`). After installing native deps:
-```bash
-pnpm approve-builds
+pnpm blocks native module compilation by default (e.g., `better-sqlite3`). Fix by editing `package.json` directly (since `pnpm approve-builds` is interactive and blocks non-interactive agents):
+```json
+{
+  "pnpm": {
+    "onlyBuiltDependencies": ["prisma", "better-sqlite3"]
+  }
+}
 ```
-Without this, the database driver silently fails with 0-byte DB files.
+Then run `pnpm install` to trigger the builds. Without this, native modules silently fail.
 
 ### create-next-app vs .planning/ Conflict
 `create-next-app` and similar scaffolding tools reject non-empty directories. Always:
 1. Scaffold into empty directory FIRST
 2. Run `init-project.sh` AFTER scaffolding completes
 Never initialize `.planning/` before running the scaffolder.
+
+### create-next-app Interactive Prompts
+`create-next-app` asks interactive questions (e.g., "Would you like to use React Compiler?") that block non-interactive agents. Pipe `echo "n"` to accept defaults:
+```bash
+echo "n" | npx create-next-app@latest my-app --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
+```
+
+### Next.js 16 + React 19 Patterns
+- `searchParams` in page components is now a **Promise** — must `await searchParams` before accessing properties
+- `useSearchParams()` requires a `<Suspense>` boundary wrapping the component — build fails on `/_not-found` without it
+- Server Actions with `revalidatePath("/")` for cache invalidation after mutations
 
 ### WebSearch Unavailability
 WebSearch can return "unavailable" for ~50% of queries. Always:

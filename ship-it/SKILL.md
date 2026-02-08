@@ -182,15 +182,21 @@ After the briefing, immediately begin Phase 6 BUILD — the briefing is informat
 
 ### Phase 6: BUILD
 
-Checkpoint-Validate-Continue pattern. See `references/pipeline-phases.md` for execution strategies (A/B/C) and context injection templates.
+Checkpoint-Validate-Continue pattern. See `references/pipeline-phases.md` for execution strategies and `references/agent-swarm-patterns.md` for coordination patterns.
 
-**For each phase in ROADMAP (one at a time):** Re-ground (read `features.json` + `PRD.md` + `STATE.md`) → Read PLAN.md → Route strategy (A: autonomous agent, B: segmented, C: sequential) → Implement (no TODOs, no placeholders) → Validate (build + tests, fix before proceeding) → Commit (specific files only, `feat(phase-N): desc`) → Update `features.json` + `STATE.md` → Check context health.
+**Parallelization Strategy (choose one):**
 
-**Deviation rules:** Bugs, missing critical code, blocking issues → fix immediately (auto). Architectural changes → STOP and ask user. Nice-to-haves → log to ISSUES.md, skip.
+1. **Agent Teams (preferred)** — If `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is enabled, spawn a coordinated team for parallel feature phases. Team lead plans and delegates; feature teammates message each other to coordinate shared files; shared task list auto-unblocks dependencies. See `references/agent-swarm-patterns.md` for team patterns.
 
-**Scaffold ordering:** For greenfield projects: run scaffolding tool (create-next-app, etc.) FIRST into empty dir, then run `scripts/init-project.sh`, then install deps + `pnpm approve-builds`.
+2. **Subagent fallback** — If Agent Teams unavailable, use Task agents with post-merge verification. After parallel agents complete, run a merge-verify step: check all new components are imported/wired, build passes, fix integration gaps before committing.
 
-**Skeleton verification:** After scaffold phase, verify: app starts, auth works, one page renders, one API responds, DB connects. Only proceed after skeleton passes.
+**Execution loop (per phase):** Re-ground → Read PLAN.md → Route strategy (A: autonomous, B: segmented, C: sequential, D: agent team) → Implement → Validate → Commit → Update `features.json` + `STATE.md`.
+
+**Deviation rules:** Bugs/missing code/blocking issues → fix immediately (auto). Architectural changes → STOP and ask user. Nice-to-haves → log to ISSUES.md, skip.
+
+**Scaffold ordering:** Run scaffolding tool FIRST into empty dir, then `scripts/init-project.sh`, then install deps + `pnpm approve-builds`.
+
+**Skeleton verification:** After scaffold, verify: app starts, one page renders, one API responds, DB connects. Only proceed after skeleton passes.
 
 **Polish:** After all features pass, invoke Ralph Loop:
 ```
