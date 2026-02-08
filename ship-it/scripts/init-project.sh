@@ -1,6 +1,10 @@
 #!/bin/bash
-# Ship-It v2 Project Initializer
+# Ship-It v3 Project Initializer
 # Creates .planning directory with config, state, and features.json template
+#
+# IMPORTANT: For greenfield projects using scaffolding tools (create-next-app,
+# create-vite, etc.), run the scaffolding FIRST, then run this script.
+# Scaffolding tools reject non-empty directories.
 
 set -e
 
@@ -8,9 +12,17 @@ PROJECT_DIR="${1:-.}"
 PROJECT_NAME="${2:-my-project}"
 
 echo ""
-echo "  SHIP-IT v2 — Project Initialization"
+echo "  SHIP-IT v3 — Project Initialization"
 echo "  ======================================"
 echo ""
+
+# Safety check: if .planning already exists, skip creation
+if [ -d "$PROJECT_DIR/.planning" ]; then
+    echo "  .planning/ already exists — skipping initialization"
+    echo "  (Use this for resuming interrupted sessions)"
+    echo ""
+    exit 0
+fi
 
 # Detect existing code (brownfield detection)
 CODE_FILES=$(find "$PROJECT_DIR" -maxdepth 3 \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.go" -o -name "*.rs" \) ! -path "*/node_modules/*" ! -path "*/.git/*" 2>/dev/null | head -20)
@@ -45,8 +57,8 @@ cat > "$PROJECT_DIR/.planning/config.json" << 'CONFIGEOF'
   "mode": "autonomous",
   "planningDepth": "standard",
   "confirmationGates": false,
-  "createdBy": "ship-it-v2",
-  "version": "2.0.0"
+  "createdBy": "ship-it-v3",
+  "version": "3.0.0"
 }
 CONFIGEOF
 
@@ -61,9 +73,12 @@ cat > "$PROJECT_DIR/.planning/STATE.md" << STATEEOF
 - **Brownfield**: $BROWNFIELD
 
 ## Pipeline Progress
+- [ ] Refine complete
 - [ ] Intake complete
+- [ ] PRD complete
 - [ ] Research complete
-- [ ] Plan complete (PROJECT.md + features.json + ROADMAP.md)
+- [ ] Architecture complete
+- [ ] Plan complete (features.json + ROADMAP.md)
 - [ ] Skeleton verified
 - [ ] Features building
 - [ ] All features passing
@@ -78,7 +93,7 @@ cat > "$PROJECT_DIR/.planning/STATE.md" << STATEEOF
 (None yet)
 
 ## Session History
-- $(date -u +"%Y-%m-%dT%H:%M:%SZ") — Ship-It v2 initialized
+- $(date -u +"%Y-%m-%dT%H:%M:%SZ") — Ship-It v3 initialized
 STATEEOF
 
 # Create features.json template

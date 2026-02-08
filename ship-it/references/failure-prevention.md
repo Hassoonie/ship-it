@@ -144,6 +144,48 @@ AI agents fail in predictable ways. Ship-It prevents each one with specific guar
 
 ---
 
+## Known Gotchas (Updated from Test Runs)
+
+### Prisma 7.x Breaking Changes
+Prisma 7 removes the traditional `PrismaClient()` constructor. You MUST use the driver adapter pattern:
+- Install: `@prisma/adapter-better-sqlite3` + `better-sqlite3` (for SQLite)
+- Import from `@/generated/prisma/client` (not `@/generated/prisma`)
+- Constructor: `new PrismaClient({ adapter })` — NOT `new PrismaClient()` or `new PrismaClient({ datasourceUrl })`
+- Class name: `PrismaBetterSqlite3` (lowercase `qlite`, not `SQLite3`)
+- DB location: `process.cwd()` + `dev.db` at project root (not `prisma/dev.db`)
+- Schema: use `provider = "prisma-client"` in generator, no `url` in datasource for SQLite with adapter
+
+```typescript
+import { PrismaClient } from "@/generated/prisma/client"
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3"
+import path from "path"
+
+const dbPath = path.join(process.cwd(), "dev.db")
+const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` })
+const prisma = new PrismaClient({ adapter })
+```
+
+### pnpm Build Scripts Blocked
+pnpm blocks native module compilation by default (e.g., `better-sqlite3`). After installing native deps:
+```bash
+pnpm approve-builds
+```
+Without this, the database driver silently fails with 0-byte DB files.
+
+### create-next-app vs .planning/ Conflict
+`create-next-app` and similar scaffolding tools reject non-empty directories. Always:
+1. Scaffold into empty directory FIRST
+2. Run `init-project.sh` AFTER scaffolding completes
+Never initialize `.planning/` before running the scaffolder.
+
+### WebSearch Unavailability
+WebSearch can return "unavailable" for ~50% of queries. Always:
+1. Retry with rephrased query
+2. Fall back to Context7 docs
+3. Document gaps in RESEARCH.md under "Unverified Assumptions"
+
+---
+
 ## Master Prevention Checklist
 
 After completing each feature, verify these guardrails are holding:

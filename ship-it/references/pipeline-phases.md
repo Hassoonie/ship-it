@@ -89,6 +89,14 @@ Research best practices for building [specific product type]:
 
 Return: Actionable recommendations with specific package names and versions.
 Do NOT return generic advice.
+
+RETRY PROTOCOL: If WebSearch returns "unavailable" or errors:
+1. Retry with a rephrased query (add year, simplify terms)
+2. If 2nd attempt fails, fall back to Context7 docs for that topic
+3. If Context7 also lacks coverage, note the gap in RESEARCH.md
+   under "## Unverified Assumptions" so BUILD phase is cautious
+Never let a failed search silently drop — always document what
+couldn't be verified.
 ```
 
 ### RESEARCH.md Template
@@ -118,44 +126,138 @@ Do NOT return generic advice.
 ## Common Pitfalls
 1. [Pitfall] — [prevention]
 
+## Version Validation
+After installing dependencies, read `package.json` and verify:
+- Actual installed versions match research assumptions
+- No major version breaks (e.g., Prisma 7 vs 6 requires adapter pattern)
+- Flag any version where research patterns may be stale
+
+## Unverified Assumptions
+[Anything WebSearch couldn't confirm — treat cautiously during build]
+
 ## Code Patterns from Context7
 [Key code snippets for reference during build]
 ```
 
 ---
 
-## Phase 3: PLAN — GSD-Integrated Planning
+## Phase 2: PRD — Product Requirements Document
 
-### PROJECT.md Template
+After REFINE + INTAKE, generate a PRD through back-and-forth conversation.
+
+### PRD.md Template
 
 ```markdown
-# [Project Name]
+# PRD: [Project Name]
 
-## What This Is
-[2-3 sentence description]
+## Problem Statement
+[Why does this product need to exist? What pain point does it solve?]
 
-## Requirements
+## Target Users
+- **Primary**: [Who, demographics, technical level]
+- **Pain points**: [What frustrates them about current solutions]
+- **Usage context**: [When/where/how they'll use this]
 
-### Validated (confirmed by user)
-- [Requirement from intake]
+## User Stories
+- As a [user type], I want to [action], so that [outcome]
+- As a [user type], I want to [action], so that [outcome]
 
-### Active (hypotheses to validate by shipping)
-- [ ] [Derived requirement]
+## Functional Requirements
+| ID | Requirement | Priority | Notes |
+|----|------------|----------|-------|
+| FR-1 | [What it must do] | Must-have | [Maps to feature F001] |
+| FR-2 | [What it must do] | Must-have | [Maps to feature F002] |
+| FR-3 | [What it must do] | Nice-to-have | [Defer to v2 if time-constrained] |
 
-### Out of Scope (explicit non-goals)
-- [Feature] — [why deferred]
+## Non-Functional Requirements
+- **Performance**: [Response time, load handling]
+- **Security**: [Auth model, data protection]
+- **Scalability**: [Expected users, data volume]
+- **Accessibility**: [Minimum standard]
 
-## Tech Stack
-- **Framework**: [choice]
-- **Database**: [choice]
-- **Auth**: [choice]
-- **Styling**: [choice]
+## Success Metrics
+- [How you know it works — quantifiable if possible]
 
-## Key Decisions
-| Decision | Choice | Reasoning |
-|----------|--------|-----------|
-| [decision] | [choice] | [why] |
+## Out of Scope (v1)
+- [Feature] — [why not now]
+
+## Open Questions
+- [Anything unresolved — to be addressed during build]
 ```
+
+### PRD Questioning Strategy
+
+After drafting the PRD, identify gaps and ask targeted questions:
+
+1. **Missing user stories** — "You mentioned [feature], but I'm not sure about the user flow. When a user [action], what should happen next?"
+2. **Ambiguous requirements** — "You want [feature] — should this be [option A] or [option B]?" (Use AskUserQuestion with concrete options)
+3. **Scope boundaries** — "These features feel like v2 territory: [list]. Shall I move them to Out of Scope?"
+4. **Technical implications** — "This requirement implies [technical need]. Is that acceptable?"
+
+Present the full PRD to user for approval. Loop until they confirm.
+
+---
+
+## Phase 4: ARCHITECTURE — Architecture Decision Record
+
+After RESEARCH completes, synthesize findings into a technical architecture document.
+
+### ARCHITECTURE.md Template
+
+```markdown
+# Architecture: [Project Name]
+
+## System Architecture
+[High-level component diagram in text/ASCII]
+
+```
+┌─────────────┐     ┌──────────────┐     ┌────────────┐
+│   Browser    │────▶│  Next.js App │────▶│  Database   │
+│  (React UI)  │◀────│  (API Routes)│◀────│  (SQLite)   │
+└─────────────┘     └──────────────┘     └────────────┘
+```
+
+## Data Model
+| Entity | Fields | Relationships |
+|--------|--------|---------------|
+| [Model] | [key fields with types] | [belongs to / has many] |
+
+## API Design
+| Method | Endpoint | Purpose | Request | Response |
+|--------|----------|---------|---------|----------|
+| GET | /api/[resource] | List all | query params | [Resource][] |
+| POST | /api/[resource] | Create | { [fields] } | [Resource] |
+
+## Tech Stack Decisions
+| Choice | Selected | Rationale |
+|--------|----------|-----------|
+| Framework | [e.g., Next.js 14] | [why this over alternatives] |
+| Database | [e.g., SQLite + Prisma] | [why this for this project] |
+| Styling | [e.g., Tailwind + shadcn] | [why this approach] |
+
+## Key Technical Risks
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| [What could go wrong] | [How bad] | [How to prevent/handle] |
+
+## File/Folder Structure
+```
+project-root/
+├── src/
+│   ├── app/           # Next.js App Router pages
+│   ├── components/    # Shared React components
+│   ├── lib/           # Utilities, DB client, helpers
+│   └── types/         # TypeScript type definitions
+├── prisma/            # Schema and migrations
+└── public/            # Static assets
+```
+```
+
+Present the architecture doc to user for review. This is the last human checkpoint before autonomous execution begins.
+
+---
+
+## Phase 5: PLAN — GSD-Integrated Planning
 
 ### features.json Generation Rules
 
@@ -185,8 +287,10 @@ The skeleton phase is special — it establishes the foundation everything else 
 ## Phase 1: Skeleton
 
 ### Task 1: Scaffold project
-- Run create-next-app (or equivalent)
+- Run create-next-app (or equivalent) in EMPTY directory
+- Run `scripts/init-project.sh` AFTER scaffolding completes
 - Install core dependencies
+- Run `pnpm approve-builds` to allow native module compilation (better-sqlite3, etc.)
 - Configure TypeScript, Tailwind, ESLint
 
 ### Task 2: Set up database
@@ -252,9 +356,58 @@ Before executing the roadmap, verify:
 - [ ] Each phase has 2-3 tasks (not 1, not 10)
 - [ ] Database schema is complete before API routes that query it
 
+### Launch Briefing Template
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║                    SHIP-IT LAUNCH BRIEFING                  ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  Project:  [Name]                                            ║
+║  Stack:    [Framework] + [DB] + [Auth] + [Styling]           ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║  EXECUTION PLAN                                              ║
+║                                                              ║
+║  Phase 1: Skeleton .............. ~[N] files  [■□□□□□□□□□]   ║
+║  Phase 2: Data Layer ........... ~[N] files  [□□□□□□□□□□]   ║
+║  Phase 3: [Feature 1] ......... ~[N] files  [□□□□□□□□□□]   ║
+║  Phase 4: [Feature 2] ......... ~[N] files  [□□□□□□□□□□]   ║
+║  Phase N: Polish ............... ~[N] files  [□□□□□□□□□□]   ║
+║  Phase N+1: Ship ............... ~[N] files  [□□□□□□□□□□]   ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║  ESTIMATES                                                   ║
+║                                                              ║
+║  Total Features:  [N]                                        ║
+║  Est. Files:      [N]-[N]                                    ║
+║  Est. API Cost:   ~$[X.XX] (based on [scope] complexity)     ║
+║  Confidence:      [High/Medium/Low] — [one-line reasoning]   ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║  WHAT I NEED FROM YOU                                        ║
+║                                                              ║
+║  • [Any env vars, API keys, or accounts needed]              ║
+║  • [Any design assets or content needed]                     ║
+║  • [Any decisions that were deferred]                        ║
+║  • Nothing else — I'll handle the rest autonomously          ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  Starting autonomous execution now...                        ║
+║  I'll build everything and check back when it's done.        ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+**Confidence assessment:**
+- **High**: Standard CRUD/SaaS with well-known patterns, clear requirements
+- **Medium**: Novel product type or complex integrations, some ambiguity
+- **Low**: Niche domain, unclear requirements, experimental tech stack
+
 ---
 
-## Phase 4: BUILD — Execution Patterns
+## Phase 6: BUILD — Execution Patterns
 
 ### Execution Strategy Selection
 
@@ -327,7 +480,7 @@ Every 3 features (or when context feels heavy):
 
 ---
 
-## Phase 5: SHIP — Verification & Deployment
+## Phase 7: SHIP — Verification & Deployment
 
 ### Full Verification Protocol
 

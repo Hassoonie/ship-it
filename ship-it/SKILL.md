@@ -1,7 +1,7 @@
 ---
 name: ship-it
 description: "This skill should be used when the user wants to go from idea to MVP, says 'build this', 'ship it', 'create an app', 'build me a product', 'idea to MVP', 'make this real', 'full build', 'zero to one', or provides a product idea and expects autonomous end-to-end execution. Orchestrates research, planning, and building to ship complete working software from a single prompt."
-version: 2.0.0
+version: 3.0.0
 ---
 
 # Ship It — Idea to MVP Orchestrator
@@ -14,16 +14,33 @@ Autonomous end-to-end product builder. Takes a single idea and ships a working M
 2. **One feature at a time** — Implement, test, commit. Never juggle multiple incomplete features
 3. **Immutable scope** — Features are tracked in `features.json`; agent can only flip `passes` status, never modify what needs building
 4. **Checkpoint everything** — Git commit after each feature. Write progress files. Enable clean restarts
-5. **Re-ground regularly** — Re-read `features.json` + `PROJECT.md` every 3 features to prevent context drift
+5. **Re-ground regularly** — Re-read `features.json` + `PRD.md` every 3 features to prevent context drift
 
 ## The Pipeline
 
-Five phases, executed in order. Each feeds the next.
+Eight phases, executed in order. Each feeds the next.
 
 ```
-INTAKE → RESEARCH → PLAN → BUILD → SHIP
-  (1)      (2)       (3)    (4)     (5)
+REFINE → INTAKE → PRD → RESEARCH → ARCHITECTURE → PLAN → BUILD → SHIP
+  (0)      (1)     (2)     (3)          (4)         (5)    (6)    (7)
+
+Optional: [MULTI-MODEL REVIEW] after Architecture (4.5)
 ```
+
+---
+
+### Phase 0: REFINE (Prompt Enhancement)
+
+Transform the user's raw prompt into a structured, high-quality input before intake begins. See `references/prompt-patterns.md` for full pattern library.
+
+1. Parse user's prompt for: product type, features, users, tech preferences, scale
+2. Select patterns from the Pattern Selection Logic table (RCF + Task Decomposition for apps, Chain-of-Thought for ambiguous requests)
+3. Apply the 5-Section Template: Role, Task & Context, Constraints, Reasoning Style, Output Format
+4. Fill in what the user provided, add specificity where vague, mark `[TO CLARIFY]` for unknowns
+5. Present enhanced prompt to user for approval/editing
+6. User can approve, edit, or say "just build it" to skip
+
+**SKIP RULE**: If user provides a detailed, structured prompt with clear requirements, skip REFINE and go directly to INTAKE.
 
 ---
 
@@ -58,16 +75,30 @@ Loop back to Step 3 if not ready.
 
 **SKIP RULE**: If the user's original prompt clearly specifies what to build, who uses it, and key features — skip to the decision gate. Do not re-ask answered questions.
 
-After intake, run `scripts/init-project.sh` and print:
+After intake, print:
 ```
-SHIP-IT v2 ENGAGED — Building [Project Name]
-Pipeline: Research → Plan → Build → Ship
+SHIP-IT v3 ENGAGED — Building [Project Name]
+Pipeline: PRD → Research → Architecture → Plan → Build → Ship
 Mode: Autonomous with guardrails
 ```
 
 ---
 
-### Phase 2: RESEARCH
+### Phase 2: PRD (Product Requirements Document)
+
+After intake, generate a PRD through conversation. This replaces the old PROJECT.md as the source of truth.
+
+1. Draft PRD from REFINE + INTAKE context using template in `references/pipeline-phases.md`
+2. PRD sections: Problem Statement, Target Users, User Stories, Functional Requirements, Non-Functional Requirements, Success Metrics, Out of Scope, Open Questions
+3. Present to user with targeted questions on gaps ("I see you want auth but didn't specify a method — email/password, OAuth, or magic link?")
+4. User approves or adds context. Loop until approved.
+5. Save as `.planning/PRD.md` — this is the source of truth for the rest of the pipeline
+
+**Functional Requirements become the seed for `features.json`** — each requirement maps to one or more features.
+
+---
+
+### Phase 3: RESEARCH
 
 Gather technical knowledge. Launch exactly 3 parallel Task agents (max 3-4 agents per workflow to avoid coordination overhead):
 
@@ -82,21 +113,33 @@ Search for best practices, common pitfalls, required third-party services for th
 
 **Output:** Compile into `.planning/RESEARCH.md`. See `references/pipeline-phases.md` for template.
 
+**Version Validation:** After installing deps in skeleton phase, read `package.json` and compare actual versions against research patterns. If a major version differs (e.g., Prisma 7 vs 6), re-query Context7 for that version's API before proceeding. Document in RESEARCH.md under "Version Validation".
+
 **Research Skip Rule:** For standard web dev (CRUD, auth, REST APIs, forms) with well-known patterns, compress research to 2 minutes. Deep research only for niche domains (3D, audio, ML, real-time, game dev, shaders).
 
 ---
 
-### Phase 3: PLAN
+### Phase 4: ARCHITECTURE
+
+After research, synthesize findings into an Architecture Decision Record before planning.
+
+1. Generate architecture doc from RESEARCH + PRD context using template in `references/pipeline-phases.md`
+2. Sections: System Architecture, Data Model, API Design, Tech Stack Rationale, Key Risks & Mitigations, File/Folder Structure
+3. Present to user for review — this is the last checkpoint before autonomous execution
+4. Save as `.planning/ARCHITECTURE.md`
+
+The architecture doc drives phase planning — no ad-hoc technical decisions during build.
+
+**Optional: Multi-Model Review (Phase 4.5)** — If configured, send PRD + Architecture to a review model before proceeding. See `references/multi-model-coordination.md`.
+
+---
+
+### Phase 5: PLAN
 
 Generate the implementation plan, then critique it before executing.
 
-**Step 3.1 — Create PROJECT.md**
-Write `.planning/PROJECT.md` with requirements categorized as:
-- **Validated**: Confirmed by user (from intake)
-- **Active**: Derived hypotheses (from research) — treated as guesses until shipped
-- **Out of Scope**: Explicit non-goals with reasoning
-
-**Step 3.2 — Generate features.json (Immutable Scope Contract)**
+**Step 5.1 — Generate features.json (Immutable Scope Contract)**
+Derive features from PRD functional requirements. Each requirement maps to one or more features.
 Create `.planning/features.json` enumerating ALL required features with pass/fail status:
 ```json
 {
@@ -108,7 +151,7 @@ Create `.planning/features.json` enumerating ALL required features with pass/fai
 ```
 **IRON RULE**: During build, the agent may ONLY change `passes` from `false` to `true`. Never add, remove, or rename features. This prevents silent scope creep and requirement dropping.
 
-**Step 3.3 — Create Roadmap**
+**Step 5.2 — Create Roadmap**
 Structure as a walking skeleton + feature layers:
 
 1. **Skeleton**: Project scaffold + auth + one blank page + one API endpoint + end-to-end verification
@@ -121,142 +164,53 @@ Structure as a walking skeleton + feature layers:
 
 Write `.planning/ROADMAP.md` and `.planning/STATE.md`.
 
-**Step 3.4 — Meta-Prompt Critique**
+**Step 5.3 — Meta-Prompt Critique**
 Before executing, review the plan: "Does this roadmap cover all features in features.json? Are phases ordered by dependency? Are there any gaps?" Fix issues found. This self-critique step catches 40% of planning errors before they become build errors.
 
-**Step 3.5 — Plan Each Phase**
+**Step 5.4 — Plan Each Phase**
 For each phase, create `.planning/phases/[N]-[name]/PLAN.md` with specific files, tasks, and verification steps. Keep plans to 2-3 tasks each (GSD pattern — small plans execute reliably).
 
-**Step 3.6 — Launch Briefing (Print Before Executing)**
+**Step 5.5 — Launch Briefing**
 
-After all planning is complete, print a launch briefing. This is the last thing the user sees before autonomous execution begins. Make it visually clear and informative:
+Print a briefing showing: Project name, stack, phase-by-phase execution plan with file estimates, total features, estimated API cost, confidence level (High/Medium/Low), and what's needed from the user. Use the ASCII box format from `references/pipeline-phases.md`.
 
-```
-╔══════════════════════════════════════════════════════════════╗
-║                    SHIP-IT LAUNCH BRIEFING                  ║
-╠══════════════════════════════════════════════════════════════╣
-║                                                              ║
-║  Project:  [Name]                                            ║
-║  Stack:    [Framework] + [DB] + [Auth] + [Styling]           ║
-║                                                              ║
-╠══════════════════════════════════════════════════════════════╣
-║  EXECUTION PLAN                                              ║
-║                                                              ║
-║  Phase 1: Skeleton .............. ~[N] files  [■□□□□□□□□□]   ║
-║  Phase 2: Data Layer ........... ~[N] files  [□□□□□□□□□□]   ║
-║  Phase 3: [Feature 1] ......... ~[N] files  [□□□□□□□□□□]   ║
-║  Phase 4: [Feature 2] ......... ~[N] files  [□□□□□□□□□□]   ║
-║  Phase 5: Polish ............... ~[N] files  [□□□□□□□□□□]   ║
-║  Phase 6: Ship ................. ~[N] files  [□□□□□□□□□□]   ║
-║                                                              ║
-╠══════════════════════════════════════════════════════════════╣
-║  ESTIMATES                                                   ║
-║                                                              ║
-║  Total Features:  [N]                                        ║
-║  Est. Files:      [N]-[N]                                    ║
-║  Est. API Cost:   ~$[X.XX] (based on [scope] complexity)     ║
-║  Confidence:      [High/Medium/Low] — [one-line reasoning]   ║
-║                                                              ║
-╠══════════════════════════════════════════════════════════════╣
-║  WHAT I NEED FROM YOU                                        ║
-║                                                              ║
-║  • [Any env vars, API keys, or accounts needed]              ║
-║  • [Any design assets or content needed]                     ║
-║  • [Any decisions that were deferred]                        ║
-║  • Nothing else — I'll handle the rest autonomously          ║
-║                                                              ║
-╠══════════════════════════════════════════════════════════════╣
-║                                                              ║
-║  Starting autonomous execution now...                        ║
-║  I'll build everything and check back when it's done.        ║
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝
-```
+**Cost heuristic:** Micro ~$0.50-2, Small ~$2-5, Medium ~$5-15, Large ~$15-40, XL ~$40-100+. Base on phases × tasks × tokens. Over-estimate rather than over-promise.
 
-**Cost estimation heuristic:**
-- Micro (3-4 phases, 5-15 files): ~$0.50-2
-- Small (4-5 phases, 10-25 files): ~$2-5
-- Medium (5-7 phases, 25-60 files): ~$5-15
-- Large (7-9 phases, 50-120 files): ~$15-40
-- XL (8-12 phases, 80-200 files): ~$40-100+
-
-Base on: number of phases × average tasks × estimated tokens per task. Be honest — over-promise is worse than over-estimate.
-
-**Confidence assessment:**
-- **High**: Standard CRUD/SaaS with well-known patterns, clear requirements
-- **Medium**: Novel product type or complex integrations, some ambiguity
-- **Low**: Niche domain, unclear requirements, experimental tech stack
-
-After printing the briefing, immediately begin Phase 4 BUILD. Do NOT wait for user confirmation — the briefing is informational, not a gate.
+After the briefing, immediately begin Phase 6 BUILD — the briefing is informational, not a gate.
 
 ---
 
-### Phase 4: BUILD
+### Phase 6: BUILD
 
-The core execution phase. Follows the Checkpoint-Validate-Continue pattern.
+Checkpoint-Validate-Continue pattern. See `references/pipeline-phases.md` for execution strategies (A/B/C) and context injection templates.
 
-<execution_loop>
+**For each phase in ROADMAP (one at a time):** Re-ground (read `features.json` + `PRD.md` + `STATE.md`) → Read PLAN.md → Route strategy (A: autonomous agent, B: segmented, C: sequential) → Implement (no TODOs, no placeholders) → Validate (build + tests, fix before proceeding) → Commit (specific files only, `feat(phase-N): desc`) → Update `features.json` + `STATE.md` → Check context health.
 
-**For each feature in ROADMAP (one at a time):**
+**Deviation rules:** Bugs, missing critical code, blocking issues → fix immediately (auto). Architectural changes → STOP and ask user. Nice-to-haves → log to ISSUES.md, skip.
 
-1. **RE-GROUND**: Read `features.json` + `PROJECT.md` + `STATE.md` to prevent context drift
-2. **READ PLAN**: Load the phase PLAN.md
-3. **ROUTE STRATEGY**: Determine execution approach:
-   - **Strategy A (Autonomous)**: No decision points → spawn Task agent for entire phase
-   - **Strategy B (Segmented)**: Has verification checkpoints → segment between checkpoints, spawn agent per segment
-   - **Strategy C (Sequential)**: Has architecture decisions → execute in main context sequentially
-4. **IMPLEMENT**: Write complete, production-quality code. No TODOs, no placeholders, no "implement later"
-5. **VALIDATE**: Run build + tests. If tests fail, fix before proceeding. Never skip.
-6. **COMMIT**: `git add` specific files only (never `git add .`). Format: `feat(phase-N): description`
-7. **UPDATE**: Mark feature as `passes: true` in `features.json`. Update `STATE.md`
-8. **CHECK CONTEXT**: If context usage feels heavy (many files read/written), write progress to `STATE.md` and consider compacting
+**Scaffold ordering:** For greenfield projects: run scaffolding tool (create-next-app, etc.) FIRST into empty dir, then run `scripts/init-project.sh`, then install deps + `pnpm approve-builds`.
 
-</execution_loop>
+**Skeleton verification:** After scaffold phase, verify: app starts, auth works, one page renders, one API responds, DB connects. Only proceed after skeleton passes.
 
-<deviation_rules>
-
-When unexpected issues arise during execution:
-
-1. **Bugs discovered** → Fix immediately, document in summary (auto — no permission needed)
-2. **Missing critical code** (security, validation, error handling) → Add immediately (auto)
-3. **Blocking issues** (missing deps, import errors, build failures) → Fix immediately (auto)
-4. **Architectural changes** (new tables, schema changes, framework switches) → STOP and ask user
-5. **Nice-to-have enhancements** → Log to `.planning/ISSUES.md`, continue without implementing
-
-Rules 1-3 are autonomous. Rule 4 requires user input. Rule 5 is deferred.
-
-</deviation_rules>
-
-**Walking Skeleton Verification (after Phase 1 "Skeleton"):**
-Before building any features, verify the skeleton works end-to-end:
-- App starts without errors
-- Auth flow completes (login/logout)
-- One page renders
-- One API endpoint responds
-- Database connects
-
-Only proceed to features after skeleton is verified.
-
-**When to Use Ralph Loop:**
-After all features pass in `features.json`, invoke for polish:
+**Polish:** After all features pass, invoke Ralph Loop:
 ```
-/ralph-loop "All features in features.json pass. Now verify end-to-end: start dev server, test each feature manually, fix UI issues, improve error handling and loading states. Stop when everything works smoothly." --max-iterations 5
+/ralph-loop "All features pass. Verify end-to-end, fix UI issues, improve error handling." --max-iterations 5
 ```
 
 ---
 
-### Phase 5: SHIP
+### Phase 7: SHIP
 
-**Step 5.1 — Final Verification**
+**Step 7.1 — Final Verification**
 - All features in `features.json` show `passes: true`
 - Build completes with zero errors
 - Dev server starts cleanly
 - Core user flow works end-to-end
 
-**Step 5.2 — Deployment Config**
+**Step 7.2 — Deployment Config**
 Generate deployment config based on stack (Vercel for Next.js, Docker for APIs, etc.)
 
-**Step 5.3 — Ship Report**
+**Step 7.3 — Ship Report**
 ```
 SHIP-IT COMPLETE
 
@@ -300,9 +254,11 @@ If a session ends mid-build, the next session can resume:
 ## Additional Resources
 
 ### Reference Files
-- **`references/pipeline-phases.md`** — Detailed phase-by-phase guide with templates, agent prompts, and context injection patterns
-- **`references/agent-swarm-patterns.md`** — Agent coordination patterns, swarm design, confidence scoring, and segmentation strategies
-- **`references/failure-prevention.md`** — The 10 common AI agent failure modes and specific prevention guardrails
+- **`references/pipeline-phases.md`** — Phase templates, agent prompts, PRD/Architecture templates, launch briefing format
+- **`references/prompt-patterns.md`** — CLEARvAI prompt enhancement patterns, 5-section template, before/after examples
+- **`references/agent-swarm-patterns.md`** — Agent coordination patterns, swarm design, segmentation strategies
+- **`references/failure-prevention.md`** — 10 failure mode guardrails + known gotchas (Prisma 7, pnpm, WebSearch)
+- **`references/multi-model-coordination.md`** — Multi-model review protocol, GPT/Claude coordination, graceful degradation
 
 ### Scripts
-- **`scripts/init-project.sh`** — Initialize `.planning/` directory with config, state, and features.json template
+- **`scripts/init-project.sh`** — Initialize `.planning/` directory (run AFTER framework scaffolding)
